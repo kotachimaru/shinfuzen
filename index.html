@@ -483,6 +483,7 @@ html, body {
   <div class="demo-hint">
     コードをお持ちでない方 →
     <button onclick="demoLogin()" style="background:none;border:none;color:var(--accent);font-size:inherit;cursor:pointer;text-decoration:underline;padding:0;">デモ版で試す（10問）</button>
+    <div style="font-size:12px;color:var(--text2);margin-top:4px;">※ デモ版は第1章の10問のみ</div>
   </div>
   <div class="demo-hint" style="margin-top:8px;">
     <a href="https://note.com/kotachi_no_heya/" target="_blank" style="color:var(--accent);font-size:13px;">noteで購入する →</a>
@@ -743,14 +744,19 @@ function renderHome() {
 
   // 章別リスト
   const chapters = [
-    { num: 1, name: '心不全の基礎・病態生理',                  icon: '❤️' },
-    { num: 2, name: '診断・検査（心電図・心エコー等）',         icon: '🔬' },
-    { num: 3, name: '薬物療法',                                icon: '💊' },
-    { num: 4, name: '非薬物療法・デバイス治療',                 icon: '⚡' },
-    { num: 5, name: '運動療法・リハビリテーション',             icon: '🏃' },
-    { num: 6, name: '療養指導・生活管理・患者教育',             icon: '📋' },
-    { num: 7, name: '多職種連携・チーム医療',                   icon: '👥' },
-    { num: 8, name: '模擬試験',                                icon: '📝' },
+    { num: 1,  name: '心不全療養指導士の役割・機能', icon: '❤️' },
+    { num: 2,  name: '心不全の概念',               icon: '🫀' },
+    { num: 3,  name: '療養指導の基本',             icon: '📖' },
+    { num: 4,  name: '心不全の予防活動',           icon: '🛡️' },
+    { num: 5,  name: '心不全の診断・成因・検査',   icon: '🔬' },
+    { num: 6,  name: '心不全の治療',               icon: '💊' },
+    { num: 7,  name: '心不全の療養指導',           icon: '📋' },
+    { num: 8,  name: 'ステージ別療養指導の実際',   icon: '📶' },
+    { num: 9,  name: '特殊な病態時の療養指導',     icon: '🧠' },
+    { num: 10, name: '特殊な状況時の療養指導',     icon: '🧳' },
+    { num: 11, name: '心不全の緩和ケア',           icon: '🕊️' },
+    { num: 12, name: '病院と在宅の連携',           icon: '🤝' },
+    { num: 13, name: '模擬試験',                   icon: '📝' },
   ];
   const list = document.getElementById('chapter-list');
   const history = getHistory();
