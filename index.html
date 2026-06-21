@@ -469,6 +469,84 @@ html, body {
   margin: 40px auto;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+/* === 月額サブスク導線 === */
+.login-divider {
+  display: flex; align-items: center; gap: 10px;
+  color: var(--text2); font-size: 12px; margin: 18px 0 14px;
+}
+.login-divider::before, .login-divider::after {
+  content: ''; flex: 1; height: 1px; background: var(--border);
+}
+.subscribe-card {
+  background: var(--surface); border: 1.5px solid var(--border);
+  border-radius: 16px; padding: 16px; width: 100%;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.subscribe-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: rgba(245,158,11,0.15); color: var(--warn);
+  font-size: 11px; font-weight: 700;
+  padding: 3px 8px; border-radius: 20px; width: fit-content;
+}
+.email-input {
+  width: 100%; padding: 12px 14px;
+  background: var(--bg); border: 1.5px solid var(--border);
+  border-radius: 10px; color: var(--text);
+  font-size: 14px; outline: none; display: block;
+}
+.email-input:focus { border-color: var(--primary); }
+.btn-subscribe {
+  display: block; width: 100%; padding: 14px; border: none;
+  border-radius: var(--radius); font-size: 15px; font-weight: 700;
+  cursor: pointer; text-align: center;
+  background: linear-gradient(135deg, #f59e0b, #ef4444); color: #fff;
+}
+.btn-subscribe:active { opacity: .8; transform: scale(.98); }
+.btn-portal {
+  background: none; border: none; color: var(--text2);
+  font-size: 12px; cursor: pointer; text-align: center;
+  text-decoration: underline; padding: 4px; width: 100%;
+}
+/* === 申込確認モーダル === */
+.modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.7); z-index: 200;
+  align-items: flex-end; justify-content: center;
+}
+.modal-overlay.show { display: flex; }
+.modal-sheet {
+  background: var(--surface);
+  border-radius: 20px 20px 0 0;
+  padding: 20px 20px calc(var(--safe-bottom) + 24px);
+  width: 100%; max-width: 480px; max-height: 90vh;
+  overflow-y: auto; -webkit-overflow-scrolling: touch;
+}
+.modal-handle {
+  width: 36px; height: 4px; background: var(--border);
+  border-radius: 2px; margin: 0 auto 18px;
+}
+.modal-title {
+  font-size: 17px; font-weight: 800;
+  margin-bottom: 14px; text-align: center;
+}
+.confirm-item {
+  display: flex; gap: 10px; align-items: flex-start;
+  padding: 10px 0; border-bottom: 1px solid var(--border);
+}
+.confirm-item:last-of-type { border-bottom: none; }
+.confirm-label { font-size: 11px; color: var(--text2); margin-bottom: 2px; }
+.confirm-value { font-size: 13px; color: var(--text); line-height: 1.5; }
+.agree-row {
+  display: flex; align-items: flex-start; gap: 10px;
+  margin: 14px 0; padding: 14px;
+  background: var(--bg); border-radius: 12px;
+}
+.agree-row input[type="checkbox"] {
+  width: 20px; height: 20px; accent-color: var(--primary);
+  flex-shrink: 0; margin-top: 1px;
+}
+.agree-row label { font-size: 12px; color: var(--text2); cursor: pointer; line-height: 1.5; }
+.modal-buttons { display: flex; flex-direction: column; gap: 8px; }
 </style>
 </head>
 <body>
@@ -486,6 +564,20 @@ html, body {
       oninput="formatCode(this)">
     <button class="btn btn-primary" onclick="submitCode()">ログイン</button>
     <div class="login-error" id="login-error"></div>
+  </div>
+
+  <div class="login-divider">または</div>
+
+  <!-- 月額プランカード -->
+  <div class="subscribe-card">
+    <span class="subscribe-badge">✦ 月額プラン</span>
+    <p style="font-size:13px;color:var(--text2);line-height:1.5">月額プランにご登録のメールアドレスを入力してください</p>
+    <input type="email" id="email-input" class="email-input"
+      placeholder="メールアドレスを入力">
+    <div class="login-error" id="email-error" style="min-height:0;margin-top:-2px"></div>
+    <button class="btn btn-primary" onclick="submitEmailLogin()" style="padding:12px;font-size:14px">メールアドレスでログイン</button>
+    <button class="btn-subscribe" onclick="openSubscribePage()">▶ 月額¥980で申し込む</button>
+    <button class="btn-portal" onclick="openPortal()">マイページ（退会・カード変更・領収書）</button>
   </div>
 
   <div class="demo-hint">
@@ -700,6 +792,115 @@ async function submitCode() {
   } catch(e) {
     console.error(e);
     errEl.textContent = 'ネットワークエラー。オフラインの場合はデモ版をお試しください。';
+  }
+}
+
+// =====================================================
+// 月額サブスク（メールログイン・申込・マイページ）
+// =====================================================
+// 心不全用 Stripe Payment Link（月額¥980・本番）。振り分けはwebhookが価格IDで判定。
+const SHINFUZEN_PAYMENT_LINK = 'https://buy.stripe.com/8x23coddW0MrbxB1gs73G04';
+
+async function submitEmailLogin() {
+  const raw = document.getElementById('email-input').value.trim();
+  const errEl = document.getElementById('email-error');
+  errEl.textContent = '';
+  if (!raw.includes('@')) {
+    errEl.textContent = 'メールアドレスを正しく入力してください';
+    return;
+  }
+  if (!window._db) {
+    errEl.textContent = 'Firebase接続エラー。しばらくして再度お試しください。';
+    return;
+  }
+  await submitEmail(raw.toLowerCase(), errEl);
+}
+
+async function submitEmail(email, errEl) {
+  try {
+    const docRef = window._fsDoc(window._db, 'shinfuzen_subscribers', email);
+    const snap = await window._fsGetDoc(docRef);
+    if (!snap.exists()) {
+      errEl.textContent = 'このメールアドレスの登録が見つかりません。月額プランにご登録ください。';
+      return;
+    }
+    const data = snap.data();
+    const expiresAt = data.expiresAt?.toDate ? data.expiresAt.toDate() : new Date(data.expiresAt);
+    const isValid = expiresAt > new Date();
+    if (!isValid) {
+      errEl.textContent = '有効期限が切れています。再度お申し込みください。';
+      return;
+    }
+    if (data.status === 'past_due' || data.status === 'inactive') {
+      errEl.textContent = 'お支払いに問題が発生しています。マイページでカード情報をご確認ください。';
+      return;
+    }
+    // active または canceled（期限内）→ ログイン許可
+    loginSuccess(email, false);
+  } catch (e) {
+    console.error(e);
+    errEl.textContent = 'ネットワークエラー。接続を確認してください。';
+  }
+}
+
+function openSubscribePage() {
+  document.getElementById('agree-check').checked = false;
+  document.getElementById('agree-btn').disabled = true;
+  document.getElementById('agree-btn').style.opacity = '0.4';
+  document.getElementById('confirm-modal').classList.add('show');
+}
+
+function closeModal() {
+  document.getElementById('confirm-modal').classList.remove('show');
+}
+
+function handleOverlayClick(e) {
+  if (e.target === document.getElementById('confirm-modal')) closeModal();
+}
+
+function toggleAgreeBtn() {
+  const checked = document.getElementById('agree-check').checked;
+  const btn = document.getElementById('agree-btn');
+  btn.disabled = !checked;
+  btn.style.opacity = checked ? '1' : '0.4';
+}
+
+function proceedToStripe() {
+  closeModal();
+  if (!SHINFUZEN_PAYMENT_LINK || SHINFUZEN_PAYMENT_LINK.startsWith('PASTE_')) {
+    alert('申し訳ございません。お申し込みは現在準備中です。少々お待ちください。');
+    return;
+  }
+  window.open(SHINFUZEN_PAYMENT_LINK, '_blank');
+}
+
+async function openPortal() {
+  const email = document.getElementById('email-input').value.trim().toLowerCase();
+  const errEl = document.getElementById('email-error');
+  errEl.textContent = '';
+  if (!email.includes('@')) {
+    errEl.textContent = 'メールアドレスを入力してください';
+    return;
+  }
+  errEl.textContent = '読み込み中...';
+  try {
+    const res = await fetch('https://us-central1-shinriha-7910b.cloudfunctions.net/createPortalSession', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: email,
+        returnUrl: 'https://kotachimaru.github.io/shinfuzen/'
+      })
+    });
+    const data = await res.json();
+    if (data.url) {
+      window.location.href = data.url;
+    } else {
+      errEl.textContent = 'ご登録が見つかりません。月額プランにご登録のアドレスをご確認ください。';
+    }
+  } catch (e) {
+    console.error(e);
+    errEl.textContent = 'エラーが発生しました。接続をご確認ください。';
   }
 }
 
@@ -1085,5 +1286,63 @@ function init() {
 
 init();
 </script>
+
+<!-- ===================== 申込確認モーダル ===================== -->
+<div class="modal-overlay" id="confirm-modal" onclick="handleOverlayClick(event)">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">申込内容のご確認</div>
+
+    <div class="confirm-item">
+      <div>
+        <div class="confirm-label">サービス</div>
+        <div class="confirm-value">心不全療養指導士 問題集 月額プラン</div>
+      </div>
+    </div>
+    <div class="confirm-item">
+      <div>
+        <div class="confirm-label">料金</div>
+        <div class="confirm-value"><strong>月額¥980（税込）</strong>、毎月自動更新</div>
+      </div>
+    </div>
+    <div class="confirm-item">
+      <div>
+        <div class="confirm-label">更新・お支払い</div>
+        <div class="confirm-value">初回決済日から毎月同日にカードへ自動的に請求されます</div>
+      </div>
+    </div>
+    <div class="confirm-item">
+      <div>
+        <div class="confirm-label">サービス利用開始</div>
+        <div class="confirm-value">決済完了後すぐに全問題が利用可能になります</div>
+      </div>
+    </div>
+    <div class="confirm-item">
+      <div>
+        <div class="confirm-label">解約方法</div>
+        <div class="confirm-value">ログイン画面「マイページ」からいつでも解約できます。解約後は当月末まで利用可能です。</div>
+      </div>
+    </div>
+    <div class="confirm-item">
+      <div>
+        <div class="confirm-label">法的表示</div>
+        <div class="confirm-value">
+          <a href="https://kotachimaru.github.io/shinfuzen/tokusho.html" target="_blank" style="color:var(--accent)">特定商取引法に基づく表示</a>　／　<a href="https://kotachimaru.github.io/shinfuzen/privacy.html" target="_blank" style="color:var(--accent)">プライバシーポリシー</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="agree-row">
+      <input type="checkbox" id="agree-check" onchange="toggleAgreeBtn()">
+      <label for="agree-check">上記の申込内容・<a href="https://kotachimaru.github.io/shinfuzen/tokusho.html" target="_blank" style="color:var(--accent)">特定商取引法に基づく表示</a>・<a href="https://kotachimaru.github.io/shinfuzen/privacy.html" target="_blank" style="color:var(--accent)">プライバシーポリシー</a>に同意します</label>
+    </div>
+
+    <div class="modal-buttons">
+      <button class="btn btn-primary" id="agree-btn" disabled onclick="proceedToStripe()" style="opacity:0.4">同意して申し込む</button>
+      <button class="btn" style="background:var(--surface);border:1.5px solid var(--border);color:var(--text2)" onclick="closeModal()">キャンセル</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
